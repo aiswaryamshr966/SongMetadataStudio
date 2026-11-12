@@ -1,0 +1,16 @@
+target/
+.idea/
+*.iml
+*.log
+.env
+.env.*
+!.env.example
+*.aac
+*.flac
+*.m4a
+*.mp3
+*.ogg
+*.opus
+*.wav
+*.webm
+*.wma

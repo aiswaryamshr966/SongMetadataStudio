@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f6f5fb">
+    <title>Song Metadata Studio</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script defer src="/app.js"></script>
+</head>
+<body>
+<div class="app-shell">
+    <header class="topbar">
+        <a class="brand" href="/" aria-label="Song Metadata Studio home">
+            <span class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 3v12.2a3.7 3.7 0 1 1-2-3.3V6l10-2v9.2a3.7 3.7 0 1 1-2-3.3V3.5L12 5z"/></svg>
+            </span>
+            <span>song<span class="brand-light">studio</span></span>
+        </a>
+        <div class="topbar-status">
+            <span class="status-dot" id="health-dot"></span>
+            <span id="health-text">Checking local tools…</span>
+            <span class="privacy-pill">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5.2 3.4 9.9 8 11 4.6-1.1 8-5.8 8-11V5zm0 4a3 3 0 0 1 3 3v1h1v5H8v-5h1V9a3 3 0 0 1 3-3m0 2a1 1 0 0 0-1 1v1h2V9a1 1 0 0 0-1-1"/></svg>
+                Local &amp; private
+            </span>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="hero-copy">
+                <div class="eyebrow"><span class="eyebrow-line"></span> YOUR PERSONAL MUSIC LIBRARY</div>
+                <h1>Make every track<br><span>feel like yours.</span></h1>
+                <p>Find the right YouTube Music release, fine-tune its details, and create a beautifully tagged FLAC copy.</p>
+            </div>
+            <div class="hero-art" aria-hidden="true">
+                <div class="art-orbit orbit-one"></div>
+                <div class="art-orbit orbit-two"></div>
+                <div class="art-note note-one">♪</div>
+                <div class="art-note note-two">♫</div>
+                <div class="art-disc"><span></span></div>
+                <div class="art-glow"></div>
+            </div>
+        </section>
+
+        <section class="workflow">
+            <div class="section-heading">
+                <div>
+                    <span class="step-label">STEP 01</span>
+                    <h2>Choose a song file</h2>
+                    <p>We inspect its duration to help find the matching release.</p>
+                </div>
+                <div class="workflow-badge"><span>1</span> Search <i></i><span>2</span> Review <i></i><span>3</span> Create FLAC</div>
+            </div>
+
+            <div class="path-card">
+                <label class="field-label" for="song-path">Full path to your audio file</label>
+                <div class="path-control">
+                    <span class="path-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9 9 9 0 0 0-9-9m0 16a7 7 0 1 1 7-7 7 7 0 0 1-7 7m-1-11 5 4-5 4z"/></svg>
+                    </span>
+                    <input id="song-path" type="text" autocomplete="off" spellcheck="false"
+                           placeholder="C:\Users\you\Music\Artist - Track.webm">
+                    <button class="button button-primary" id="search-button" type="button">
+                        <span class="button-label">Find metadata</span>
+                        <svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m20 20-4.3-4.3a7 7 0 1 0-1.4 1.4L18.6 21zM5 10a5 5 0 1 1 10 0 5 5 0 0 1-10 0"/></svg>
+                    </button>
+                </div>
+                <div class="hint-row">
+                    <span>Supported audio formats: WebM, MP3, M4A, FLAC, WAV and more</span>
+                    <span>The original is never changed</span>
+                </div>
+            </div>
+
+            <div class="error-banner" id="error-banner" role="alert" hidden></div>
+
+            <section class="result-section" id="candidate-section" hidden>
+                <div class="section-heading compact-heading">
+                    <div>
+                        <span class="step-label">STEP 02</span>
+                        <h2>Pick the right release</h2>
+                        <p id="search-summary"></p>
+                        <p class="search-guidance">A unique title and runtime match auto-loads its tags; otherwise choose a result.</p>
+                    </div>
+                    <span class="result-count" id="result-count"></span>
+                </div>
+                <div class="candidate-list" id="candidate-list"></div>
+            </section>
+
+            <section class="metadata-section" id="metadata-section" hidden>
+                <div class="section-heading compact-heading">
+                    <div>
+                        <span class="step-label">STEP 03</span>
+                        <h2>Review your tags</h2>
+                        <p>Edit any suggestion before creating the FLAC.</p>
+                    </div>
+                    <a class="text-link" id="source-link" href="#" target="_blank" rel="noopener noreferrer">
+                        View on YouTube Music
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7h-2V6.4l-9.3 9.3-1.4-1.4L17.6 5H14zM5 5h6v2H7v10h10v-4h2v6H5z"/></svg>
+                    </a>
+                </div>
+
+                <div class="metadata-card">
+                    <aside class="artwork-column">
+                        <div class="cover-frame" id="cover-frame">
+                            <div class="cover-placeholder" id="cover-placeholder">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12.2a3.7 3.7 0 1 1-2-3.3V6l10-2v9.2a3.7 3.7 0 1 1-2-3.3V3.5L12 5z"/></svg>
+                                <span>Album art<br>preview</span>
+                            </div>
+                            <img id="cover-image" alt="Selected release cover art" hidden>
+                        </div>
+                        <div class="cover-caption">
+                            <span class="cover-check" id="cover-check" hidden>✓</span>
+                            <span id="cover-caption-text">Artwork will be embedded in the FLAC</span>
+                        </div>
+                        <div class="match-note" id="match-note"></div>
+                    </aside>
+
+                    <form id="metadata-form" class="metadata-form">
+                        <div class="metadata-grid">
+                            <div class="form-field field-wide">
+                                <label for="tag-title">Title <b>*</b></label>
+                                <input id="tag-title" name="title" required maxlength="200">
+                            </div>
+                            <div class="form-field field-wide">
+                                <label for="tag-artist">Artist <b>*</b></label>
+                                <input id="tag-artist" name="artist" required maxlength="500">
+                                <small id="artist-credit-hint"></small>
+                            </div>
+                            <div class="form-field field-wide">
+                                <label for="tag-album">Album</label>
+                                <input id="tag-album" name="album" maxlength="500">
+                            </div>
+                            <div class="form-field">
+                                <label for="tag-album-artist">Album artist</label>
+                                <input id="tag-album-artist" name="albumArtist" maxlength="500">
+                            </div>
+                            <div class="form-field">
+                                <label for="tag-composer">Composer</label>
+                                <input id="tag-composer" name="composer" maxlength="500">
+                            </div>
+                            <div class="form-field">
+                                <label for="tag-writer">Written by</label>
+                                <input id="tag-writer" name="writer" maxlength="500">
+                            </div>
+                            <div class="form-field">
+                                <label for="tag-publisher">Publisher / label</label>
+                                <input id="tag-publisher" name="publisher" maxlength="500">
+                            </div>
+                            <div class="form-field">
+                                <label for="tag-genre">Genre</label>
+                                <input id="tag-genre" name="genre" maxlength="200">
+                            </div>
+                            <div class="form-field">
+                                <label for="tag-date">Release date / year</label>
+                                <input id="tag-date" name="date" maxlength="20" placeholder="e.g. 2026 or 2026-04-15">
+                            </div>
+                            <div class="form-field number-field">
+                                <label for="tag-track">Track</label>
+                                <div class="number-pair">
+                                    <input id="tag-track" name="trackNumber" type="number" min="1" placeholder="—">
+                                    <span>/</span>
+                                    <input id="tag-track-total" name="trackTotal" type="number" min="1" placeholder="—">
+                                </div>
+                            </div>
+                            <div class="form-field number-field">
+                                <label for="tag-disc">Disc</label>
+                                <div class="number-pair">
+                                    <input id="tag-disc" name="discNumber" type="number" min="1" placeholder="—">
+                                    <span>/</span>
+                                    <input id="tag-disc-total" name="discTotal" type="number" min="1" placeholder="—">
+                                </div>
+                            </div>
+                            <div class="form-field field-wide">
+                                <label for="tag-comment">Comment</label>
+                                <input id="tag-comment" name="comment" maxlength="500">
+                            </div>
+                        </div>
+
+                        <div class="form-footer">
+                            <label class="replace-option">
+                                <input id="replace-existing" type="checkbox">
+                                <span class="checkmark"></span>
+                                Replace an existing FLAC
+                            </label>
+                            <button class="button button-primary export-button" id="export-button" type="submit">
+                                <span class="button-label">Create FLAC copy</span>
+                                <svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14a2 2 0 0 0 2-2v-5h-2v5H5v-5H3v5a2 2 0 0 0 2 2m7-3 5-5-1.4-1.4-2.6 2.6V3h-2v10.2l-2.6-2.6L7 12z"/></svg>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <section class="success-card" id="success-card" hidden>
+                <span class="success-icon">✓</span>
+                <div>
+                    <strong>Your FLAC copy is ready</strong>
+                    <p id="success-path"></p>
+                </div>
+                <button class="icon-button" id="copy-path-button" type="button" aria-label="Copy output path" title="Copy output path">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2m0 16H8V7h11z"/></svg>
+                </button>
+            </section>
+        </section>
+
+        <footer class="footer">
+            <span>Made for your music library</span>
+            <span><i></i> Local processing · Original files stay untouched</span>
+        </footer>
+    </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
