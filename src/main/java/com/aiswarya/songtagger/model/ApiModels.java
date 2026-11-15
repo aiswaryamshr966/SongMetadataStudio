@@ -9,6 +9,9 @@ public final class ApiModels {
     public record SearchRequest(String path) {
     }
 
+    public record UploadResponse(String path, String filename) {
+    }
+
     public record AudioInfo(String path, String filename, double durationSeconds,
                             String durationLabel, String searchQuery) {
     }
@@ -30,11 +33,17 @@ public final class ApiModels {
                                      String date, Integer trackNumber, Integer trackTotal,
                                      Integer discNumber, Integer discTotal, String sourceUrl,
                                      String coverUrl, List<String> creditedArtists,
-                                     List<String> warnings) {
+                                     List<String> warnings, String comment, String catalogMatch) {
     }
 
     public record ExportRequest(String searchId, String videoId, MetadataUpdate metadata,
-                                boolean replaceExisting) {
+                                boolean replaceExisting, String outputDirectory) {
+    }
+
+    public record OutputDirectoryRequest(String path) {
+    }
+
+    public record OutputDirectoryResponse(String path) {
     }
 
     public record MetadataUpdate(String title, String artist, String album, String albumArtist,
@@ -52,6 +61,9 @@ public final class ApiModels {
 
     public record HealthResponse(String status, boolean mediaToolsAvailable,
                                  boolean ytmusicAvailable, String message) {
+    }
+
+    public record ShutdownResponse(String message) {
     }
 
     public record ApiError(String message) {

@@ -31,13 +31,18 @@ public class SongWorkflowService {
     private static final Duration SESSION_TTL = Duration.ofHours(2);
     private final YouTubeMusicBridge bridge;
     private final MediaService mediaService;
+    private final OutputDirectoryService outputDirectoryService;
+    private final AppleCatalogService appleCatalogService;
     private final ObjectMapper objectMapper;
     private final Map<String, SearchSession> sessions = new ConcurrentHashMap<>();
 
     public SongWorkflowService(YouTubeMusicBridge bridge, MediaService mediaService,
-                              ObjectMapper objectMapper) {
+                              OutputDirectoryService outputDirectoryService,
+                              AppleCatalogService appleCatalogService, ObjectMapper objectMapper) {
         this.bridge = bridge;
         this.mediaService = mediaService;
+        this.outputDirectoryService = outputDirectoryService;
+        this.appleCatalogService = appleCatalogService;
         this.objectMapper = objectMapper;
     }
 
@@ -87,7 +92,8 @@ public class SongWorkflowService {
                         : candidate.durationDifferenceSeconds()));
         pruneExpiredSessions();
         String searchId = UUID.randomUUID().toString();
-        SearchSession session = new SearchSession(source, inspection.durationSeconds(), query, candidates);
+        SearchSession session = new SearchSession(
+                source, inspection.durationSeconds(), query, candidates, inspection.tags());
         sessions.put(searchId, session);
 
         AudioInfo audio = new AudioInfo(source.toString(), source.getFileName().toString(),
@@ -112,12 +118,15 @@ public class SongWorkflowService {
             throw new WorkflowException(HttpStatus.BAD_GATEWAY,
                     "YouTube Music returned incomplete track details.", exception);
         }
+        AppleCatalogService.Lookup lookup = appleCatalogService.lookup(candidate);
+        suggestion = populateMissingMetadata(
+                suggestion, candidate, session.sourceTags(), lookup.track(), lookup.warning());
         session.details().put(videoId, suggestion);
         return suggestion;
     }
 
     public ExportResponse export(String searchId, String videoId, MetadataUpdate metadata,
-                                 boolean replaceExisting) {
+                                 boolean replaceExisting, String requestedOutputDirectory) {
         SearchSession session = requireSession(searchId);
         if (!session.candidates().containsKey(videoId)) {
             throw new WorkflowException(HttpStatus.BAD_REQUEST,
@@ -128,7 +137,10 @@ public class SongWorkflowService {
             throw new WorkflowException(HttpStatus.BAD_REQUEST,
                     "Review the selected song details before creating the FLAC.");
         }
-        return mediaService.export(session.source(), metadata, selection.coverUrl(), replaceExisting);
+        Path outputDirectory = outputDirectoryService.resolve(requestedOutputDirectory);
+        outputDirectoryService.registerPlaybackDirectory(outputDirectory);
+        return mediaService.export(session.source(), metadata, selection.coverUrl(), replaceExisting,
+                outputDirectory);
     }
 
     static String buildSearchQuery(String filename) {
@@ -147,6 +159,112 @@ public class SongWorkflowService {
         return hours > 0
                 ? String.format("%d:%02d:%02d", hours, minutes, remainder)
                 : String.format("%d:%02d", minutes, remainder);
+    }
+
+    static MetadataSuggestion populateMissingMetadata(MetadataSuggestion suggestion, Candidate candidate,
+                                                       Map<String, String> sourceTags,
+                                                       AppleCatalogService.AppleTrack appleTrack,
+                                                       String catalogWarning) {
+        String trackTag = sourceTag(sourceTags, "track", "tracknumber");
+        String discTag = sourceTag(sourceTags, "disc", "discnumber");
+        List<String> warnings = new ArrayList<>(suggestion.warnings() == null
+                ? List.of()
+                : suggestion.warnings());
+        if (catalogWarning != null && !catalogWarning.isBlank()) {
+            warnings.add(catalogWarning);
+        }
+        return new MetadataSuggestion(
+                firstText(appleText(appleTrack, AppleCatalogService.AppleTrack::title),
+                        suggestion.title(), candidate.title(), sourceTag(sourceTags, "title")),
+                firstText(appleText(appleTrack, AppleCatalogService.AppleTrack::artist),
+                        suggestion.artist(), String.join(", ", candidate.artists()),
+                        sourceTag(sourceTags, "artist", "performer")),
+                firstText(appleText(appleTrack, AppleCatalogService.AppleTrack::album),
+                        suggestion.album(), candidate.album(), sourceTag(sourceTags, "album")),
+                firstText(suggestion.albumArtist(), sourceTag(sourceTags, "albumartist")),
+                firstText(suggestion.composer(), sourceTag(sourceTags, "composer")),
+                firstText(suggestion.writer(), sourceTag(sourceTags, "writer", "writers", "lyricist")),
+                firstText(suggestion.publisher(), sourceTag(sourceTags, "publisher", "label", "recordlabel")),
+                firstText(appleText(appleTrack, AppleCatalogService.AppleTrack::genre),
+                        suggestion.genre(), sourceTag(sourceTags, "genre")),
+                firstText(appleText(appleTrack, AppleCatalogService.AppleTrack::date),
+                        suggestion.date(), candidate.year() == null ? "" : candidate.year().toString(),
+                        sourceTag(sourceTags, "date", "releasedate", "originaldate", "year")),
+                firstNumber(appleNumber(appleTrack, AppleCatalogService.AppleTrack::trackNumber),
+                        suggestion.trackNumber(), candidate.trackNumber(), taggedNumber(trackTag)),
+                firstNumber(appleNumber(appleTrack, AppleCatalogService.AppleTrack::trackTotal),
+                        suggestion.trackTotal(),
+                        taggedNumber(sourceTag(sourceTags, "tracktotal", "totaltracks")), taggedTotal(trackTag)),
+                firstNumber(appleNumber(appleTrack, AppleCatalogService.AppleTrack::discNumber),
+                        suggestion.discNumber(), taggedNumber(discTag)),
+                firstNumber(appleNumber(appleTrack, AppleCatalogService.AppleTrack::discTotal),
+                        suggestion.discTotal(),
+                        taggedNumber(sourceTag(sourceTags, "disctotal", "totaldiscs")), taggedTotal(discTag)),
+                suggestion.sourceUrl(),
+                suggestion.coverUrl(),
+                suggestion.creditedArtists(),
+                List.copyOf(warnings),
+                firstText(suggestion.comment(), sourceTag(sourceTags, "comment")),
+                appleTrack == null ? "" : appleTrack.catalogMatch());
+    }
+
+    private static String appleText(AppleCatalogService.AppleTrack track,
+                                    java.util.function.Function<AppleCatalogService.AppleTrack, String> getter) {
+        return track == null ? "" : getter.apply(track);
+    }
+
+    private static Integer appleNumber(AppleCatalogService.AppleTrack track,
+                                       java.util.function.Function<AppleCatalogService.AppleTrack, Integer> getter) {
+        return track == null ? null : getter.apply(track);
+    }
+
+    private static String firstText(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.strip();
+            }
+        }
+        return "";
+    }
+
+    private static Integer firstNumber(Integer... values) {
+        for (Integer value : values) {
+            if (value != null && value > 0) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private static String sourceTag(Map<String, String> tags, String... names) {
+        for (String name : names) {
+            String value = tags.get(name);
+            if (value != null && !value.isBlank()) {
+                return value.strip();
+            }
+        }
+        return "";
+    }
+
+    private static Integer taggedNumber(String value) {
+        String number = value.split("/", 2)[0].strip();
+        try {
+            return Integer.valueOf(number);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private static Integer taggedTotal(String value) {
+        String[] parts = value.split("/", 2);
+        if (parts.length < 2) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(parts[1].strip());
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 
     private Path resolveSource(String submittedPath) {
@@ -210,11 +328,12 @@ public class SongWorkflowService {
     private record SearchSession(Path source, double durationSeconds, String query,
                                  Map<String, Candidate> candidates,
                                  Map<String, MetadataSuggestion> details,
+                                 Map<String, String> sourceTags,
                                  Instant createdAt) {
         private SearchSession(Path source, double durationSeconds, String query,
-                              List<Candidate> candidates) {
+                              List<Candidate> candidates, Map<String, String> sourceTags) {
             this(source, durationSeconds, query, indexCandidates(candidates),
-                    new ConcurrentHashMap<>(), Instant.now());
+                    new ConcurrentHashMap<>(), Map.copyOf(sourceTags), Instant.now());
         }
 
         private static Map<String, Candidate> indexCandidates(List<Candidate> candidates) {
