@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#f6f5fb">
+    <meta name="theme-color" content="#f3f0e7">
     <title>Song Metadata Studio</title>
     <link rel="stylesheet" href="/styles.css">
     <script defer src="/app.js"></script>
@@ -27,12 +27,55 @@
         </div>
     </header>
 
-    <main>
+    <div class="studio-layout">
+        <aside class="studio-sidebar" aria-label="Studio navigation and session queue">
+            <section class="rail-section">
+                <span class="rail-eyebrow">YOUR WORKSPACE</span>
+                <div class="mode-switch" role="tablist" aria-label="Choose a tagging workflow">
+                    <button id="mode-single-tab" class="mode-tab" type="button" role="tab"
+                            aria-selected="true" aria-controls="single-panel" tabindex="0">
+                        <span class="mode-tab-icon" aria-hidden="true">♫</span>
+                        <span><strong>Single track</strong><small>One song at a time</small></span>
+                    </button>
+                    <button id="mode-batch-tab" class="mode-tab" type="button" role="tab"
+                            aria-selected="false" aria-controls="batch-panel" tabindex="-1">
+                        <span class="mode-tab-icon" aria-hidden="true">▤</span>
+                        <span><strong>Batch studio</strong><small>Review a collection</small></span>
+                    </button>
+                </div>
+            </section>
+
+            <div class="rail-divider"></div>
+
+            <section class="session-queue-card" aria-labelledby="session-queue-title">
+                <span class="rail-eyebrow" id="session-queue-title">SESSION QUEUE</span>
+                <strong id="session-file-count">0 tracks</strong>
+                <p id="session-file-summary">No files in this session yet.</p>
+                <div class="queue-state" id="session-queue-state" data-state="ready">
+                    <span class="queue-state-dot" aria-hidden="true"></span>
+                    <span id="session-queue-status">Ready for your first track</span>
+                </div>
+            </section>
+
+            <div class="sidebar-note">
+                <span class="sidebar-note-mark" aria-hidden="true">♪</span>
+                <p>Original audio stays untouched. New FLAC copies are verified before you get them.</p>
+            </div>
+
+            <section class="sidebar-shutdown" aria-label="Local app controls">
+                <button class="button button-secondary" id="shutdown-button" type="button">
+                    Shut down app
+                </button>
+                <small id="shutdown-hint">Stops the local server; saved FLAC copies stay safe.</small>
+            </section>
+        </aside>
+
+        <main class="studio-main">
         <section class="hero">
             <div class="hero-copy">
-                <div class="eyebrow"><span class="eyebrow-line"></span> YOUR PERSONAL MUSIC LIBRARY</div>
+                <div class="eyebrow"><span class="eyebrow-line"></span> LOCAL MUSIC WORKBENCH</div>
                 <h1>Make every track<br><span>feel like yours.</span></h1>
-                <p>Find the right YouTube Music release, fine-tune its details, and create a beautifully tagged FLAC copy.</p>
+                <p>Bring a track in, review its match and credits, then send a verified FLAC copy to your library.</p>
             </div>
             <div class="hero-art" aria-hidden="true">
                 <div class="art-orbit orbit-one"></div>
@@ -51,15 +94,43 @@
                     <h2>Choose a song file</h2>
                     <p>We inspect its duration to help find the matching release.</p>
                 </div>
-                <div class="workflow-badge"><span>1</span> Search <i></i><span>2</span> Review <i></i><span>3</span> Create FLAC</div>
+                <div class="workflow-heading-aside">
+                    <ol class="workflow-stepper" id="workflow-stepper" aria-label="Tagging progress">
+                        <li id="workflow-step-choose" data-state="current" aria-current="step">
+                            <span class="workflow-step-number">01</span><span>Choose</span>
+                        </li>
+                        <li id="workflow-step-review" data-state="upcoming">
+                            <span class="workflow-step-number">02</span><span>Review</span>
+                        </li>
+                        <li id="workflow-step-create" data-state="upcoming">
+                            <span class="workflow-step-number">03</span><span>Create</span>
+                        </li>
+                    </ol>
+                    <div class="activity-status" id="activity-status" data-state="ready"
+                         role="status" aria-live="polite" aria-atomic="true">
+                        <span class="activity-dot" aria-hidden="true"></span>
+                        <span id="activity-message">Ready when you are</span>
+                    </div>
+                </div>
             </div>
 
-            <div class="path-card">
-                <label class="field-label" for="song-path">Full path to your audio file</label>
-                <div class="path-control">
-                    <span class="path-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9 9 9 0 0 0-9-9m0 16a7 7 0 1 1 7-7 7 7 0 0 1-7 7m-1-11 5 4-5 4z"/></svg>
+            <div class="path-card mode-panel" id="single-panel" role="tabpanel"
+                 aria-labelledby="mode-single-tab" tabindex="0">
+                <div class="dropzone" id="single-dropzone" aria-describedby="single-dropzone-hint">
+                    <span class="dropzone-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="M12 3v12.2a3.7 3.7 0 1 1-2-3.3V6l10-2v9.2a3.7 3.7 0 1 1-2-3.3V3.5L12 5z"/></svg>
                     </span>
+                    <div class="dropzone-copy">
+                        <strong>Drop a track here</strong>
+                        <span id="single-dropzone-hint">or browse your device · one audio file, up to 512 MiB</span>
+                    </div>
+                    <button class="button button-secondary" id="choose-single-button" type="button">Browse files</button>
+                    <input id="single-file-input" type="file"
+                           accept=".3gp,.aac,.ac3,.aif,.aiff,.alac,.amr,.ape,.dff,.dsf,.eac3,.flac,.m4a,.mka,.mkv,.mov,.mp2,.mp3,.mp4,.oga,.ogg,.opus,.wav,.webm,.wma"
+                           hidden>
+                </div>
+                <label class="field-label" for="song-path">Or enter a file path</label>
+                <div class="path-control">
                     <input id="song-path" type="text" autocomplete="off" spellcheck="false"
                            placeholder="C:\Users\you\Music\Artist - Track.webm">
                     <button class="button button-primary" id="search-button" type="button">
@@ -68,8 +139,50 @@
                     </button>
                 </div>
                 <div class="hint-row">
-                    <span>Supported audio formats: WebM, MP3, M4A, FLAC, WAV and more</span>
+                    <span>Browse for one song, or add multiple songs below</span>
                     <span>The original is never changed</span>
+                </div>
+            </div>
+
+            <div class="batch-launch-card mode-panel" id="batch-panel" role="tabpanel"
+                 aria-labelledby="mode-batch-tab" tabindex="0" hidden>
+                <div class="batch-launch-copy">
+                    <span class="step-label">BUILD YOUR QUEUE</span>
+                    <h3>Bring in a listening set</h3>
+                    <p>Drop a collection, review each match independently, then create the ready FLAC copies.</p>
+                </div>
+                <div class="dropzone batch-dropzone" id="batch-dropzone" aria-describedby="batch-dropzone-hint">
+                    <span class="dropzone-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2M5 5h14v14H5zm2 12 3.3-4.2 2.4 2.9 1.7-2 3.6 3.3zM8 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3"/></svg>
+                    </span>
+                    <div class="dropzone-copy">
+                        <strong>Drop multiple tracks here</strong>
+                        <span id="batch-dropzone-hint">or select files · up to 100 tracks, 512 MiB each</span>
+                    </div>
+                    <button class="button button-secondary" id="choose-batch-button" type="button">
+                        Choose tracks
+                    </button>
+                </div>
+                <input id="batch-file-input" type="file" multiple
+                       accept=".3gp,.aac,.ac3,.aif,.aiff,.alac,.amr,.ape,.dff,.dsf,.eac3,.flac,.m4a,.mka,.mkv,.mov,.mp2,.mp3,.mp4,.oga,.ogg,.opus,.wav,.webm,.wma"
+                       hidden>
+                <details class="upload-queue" id="upload-queue" hidden>
+                    <summary>
+                        <span><strong>Selected tracks</strong><small id="upload-queue-summary">Waiting to upload</small></span>
+                        <span class="queue-chevron" aria-hidden="true">⌄</span>
+                    </summary>
+                    <ul id="upload-queue-list" aria-live="polite"></ul>
+                </details>
+                <label class="field-label batch-path-label" for="batch-paths">Or paste full paths, one per line</label>
+                <textarea id="batch-paths" rows="3"
+                          placeholder="C:\Music\Artist - Track.webm&#10;C:\Music\Another Artist - Song.flac"></textarea>
+                <div class="batch-launch-footer">
+                    <span>Browser-selected files upload to this local app and are cleaned up after 4 hours or app close. Your source files stay untouched.</span>
+                    <div class="batch-actions">
+                        <button class="button button-primary" id="search-batch-button" type="button">
+                            Build review queue
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -88,17 +201,64 @@
                 <div class="candidate-list" id="candidate-list"></div>
             </section>
 
+            <section class="batch-section" id="batch-section" hidden>
+                <div class="section-heading compact-heading">
+                    <div>
+                        <span class="step-label">BATCH REVIEW</span>
+                        <h2>Review each track</h2>
+                        <p id="batch-progress" aria-live="polite"></p>
+                    </div>
+                    <label class="replace-option batch-replace">
+                        <input id="batch-replace-existing" type="checkbox">
+                        <span class="checkmark"></span>
+                        Replace existing FLACs
+                    </label>
+                </div>
+                <div class="batch-progress-track" id="batch-progress-track" role="progressbar"
+                     aria-label="Batch processing progress" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0">
+                    <span id="batch-progress-fill"></span>
+                </div>
+                <div class="batch-list" id="batch-list"></div>
+                <div class="batch-create-bar">
+                    <span id="batch-create-summary" aria-live="polite">Choose a release for each file before creating.</span>
+                    <button class="button button-primary" id="batch-export-button" type="button" disabled>
+                        Create ready FLAC copies
+                    </button>
+                </div>
+                <section class="batch-completion-card" id="batch-completion-panel" aria-live="polite" hidden>
+                    <span class="completion-check" aria-hidden="true">✓</span>
+                    <div class="batch-completion-copy">
+                        <strong id="batch-completion-count">Copies created</strong>
+                        <span id="batch-completion-path"></span>
+                    </div>
+                    <button class="button button-secondary" id="batch-open-output-button" type="button">
+                        Open output folder
+                    </button>
+                </section>
+            </section>
+
             <section class="metadata-section" id="metadata-section" hidden>
                 <div class="section-heading compact-heading">
                     <div>
                         <span class="step-label">STEP 03</span>
                         <h2>Review your tags</h2>
-                        <p>Edit any suggestion before creating the FLAC.</p>
+                        <p>Apple’s catalog is preferred for confident matches; other fields use YouTube Music or existing file tags.</p>
                     </div>
                     <a class="text-link" id="source-link" href="#" target="_blank" rel="noopener noreferrer">
                         View on YouTube Music
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7h-2V6.4l-9.3 9.3-1.4-1.4L17.6 5H14zM5 5h6v2H7v10h10v-4h2v6H5z"/></svg>
                     </a>
+                </div>
+                <div class="match-context" aria-label="Match and metadata source">
+                    <div>
+                        <span>Match confidence</span>
+                        <strong id="match-confidence">Select a release to check its match</strong>
+                    </div>
+                    <div>
+                        <span>Metadata sources</span>
+                        <strong id="metadata-source">Apple catalog + YouTube Music + local tags where available</strong>
+                    </div>
+                    <p>Confidence is based on the selected release and runtime; review the credits and version before creating.</p>
                 </div>
 
                 <div class="metadata-card">
@@ -199,9 +359,16 @@
                     <strong>Your FLAC copy is ready</strong>
                     <p id="success-path"></p>
                 </div>
+                <button class="button button-secondary success-open-button" id="success-open-output-button" type="button">
+                    Open output folder
+                </button>
                 <button class="icon-button" id="copy-path-button" type="button" aria-label="Copy output path" title="Copy output path">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2m0 16H8V7h11z"/></svg>
                 </button>
+                <div class="created-player" id="success-player" hidden>
+                    <strong id="success-audio-label">Listen to this FLAC</strong>
+                    <audio id="success-audio" controls preload="none" aria-label="Play the created FLAC"></audio>
+                </div>
             </section>
         </section>
 
@@ -209,7 +376,65 @@
             <span>Made for your music library</span>
             <span><i></i> Local processing · Original files stay untouched</span>
         </footer>
-    </main>
+        </main>
+
+        <aside class="studio-inspector" aria-label="Progress and output settings">
+            <section class="progress-card" aria-labelledby="progress-card-title">
+                <div class="inspector-card-heading">
+                    <span class="rail-eyebrow">LIVE WORKFLOW</span>
+                    <span class="progress-phase" id="workflow-progress-label">Ready</span>
+                </div>
+                <h2 id="progress-card-title">Your next steps</h2>
+                <p class="progress-description" id="workflow-progress-description" aria-live="polite">
+                    Choose a song or add a batch to begin.
+                </p>
+                <div class="workflow-progress-track" id="workflow-progress-track" role="progressbar"
+                     aria-label="Tagging workflow progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <span id="workflow-progress-fill"></span>
+                </div>
+                <ol class="workflow-checklist" aria-label="Workflow checklist">
+                    <li id="workflow-check-file" data-state="current">
+                        <span class="checklist-marker">01</span>
+                        <span><strong>Choose audio</strong><small id="workflow-check-file-detail">Ready to add files</small></span>
+                    </li>
+                    <li id="workflow-check-match" data-state="upcoming">
+                        <span class="checklist-marker">02</span>
+                        <span><strong>Find a release</strong><small id="workflow-check-match-detail">Waiting for audio</small></span>
+                    </li>
+                    <li id="workflow-check-tags" data-state="upcoming">
+                        <span class="checklist-marker">03</span>
+                        <span><strong>Review the tags</strong><small id="workflow-check-tags-detail">Credits are never guessed</small></span>
+                    </li>
+                    <li id="workflow-check-create" data-state="upcoming">
+                        <span class="checklist-marker">04</span>
+                        <span><strong>Create a copy</strong><small id="workflow-check-create-detail">Original stays untouched</small></span>
+                    </li>
+                </ol>
+            </section>
+
+            <section class="output-location-card" aria-labelledby="output-location-title">
+                <div class="output-location-copy">
+                    <span class="rail-eyebrow">PERSISTENT DESTINATION</span>
+                    <h2 id="output-location-title">Your FLAC library</h2>
+                    <label class="field-label" for="output-directory">Output folder</label>
+                    <input id="output-directory" type="text" autocomplete="off" spellcheck="false"
+                           aria-describedby="output-directory-hint"
+                           placeholder="Loading your Music output folder…">
+                    <p id="output-directory-hint" aria-live="polite">
+                        Single and batch copies are saved here. Existing files are never overwritten unless you choose replace.
+                    </p>
+                </div>
+                <button class="button button-secondary" id="open-output-directory-button" type="button">
+                    Open folder
+                </button>
+            </section>
+
+            <section class="inspector-tip">
+                <span class="inspector-tip-icon" aria-hidden="true">i</span>
+                <p>Apple Music catalog data can improve release details. YouTube Music and existing file tags fill available fields; missing credits stay blank.</p>
+            </section>
+        </aside>
+    </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body>

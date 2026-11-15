@@ -17,13 +17,17 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -61,20 +65,36 @@ public class MediaService {
             throw new WorkflowException(HttpStatus.BAD_REQUEST,
                     "The selected file has no readable audio stream.");
         }
-        return new Inspection(duration);
+        return new Inspection(duration, extractMetadataTags(probe));
+    }
+
+    static Map<String, String> extractMetadataTags(JsonNode probe) {
+        Map<String, String> tags = new HashMap<>();
+        for (JsonNode stream : probe.path("streams")) {
+            if ("audio".equals(stream.path("codec_type").asText())) {
+                copyTags(stream.path("tags"), tags);
+            }
+        }
+        copyTags(probe.path("format").path("tags"), tags);
+        return Map.copyOf(tags);
+    }
+
+    private static void copyTags(JsonNode source, Map<String, String> target) {
+        if (!source.isObject()) {
+            return;
+        }
+        source.fields().forEachRemaining(entry -> {
+            String value = entry.getValue().asText().strip();
+            if (!value.isBlank()) {
+                target.put(entry.getKey().replaceAll("[^A-Za-z0-9]", "").toLowerCase(Locale.ROOT), value);
+            }
+        });
     }
 
     public ExportResponse export(Path source, MetadataUpdate metadata, String coverUrl,
-                                 boolean replaceExisting) {
+                                 boolean replaceExisting, Path outputDirectory) {
         validateMetadata(metadata);
-        Path output = outputPath(source);
-        if (output.equals(source)) {
-            output = source.resolveSibling(stripExtension(source.getFileName().toString()) + " (tagged).flac");
-        }
-        if (Files.exists(output) && !replaceExisting) {
-            throw new WorkflowException(HttpStatus.CONFLICT,
-                    "A FLAC already exists at " + output + ". Enable replace to overwrite it.");
-        }
+        Path output = outputPath(source, outputDirectory, replaceExisting);
 
         Path temporaryOutput = output.resolveSibling("." + output.getFileName() + "." + UUID.randomUUID() + ".tmp.flac");
         Path artwork = null;
@@ -118,22 +138,34 @@ public class MediaService {
                         "FFmpeg could not create the FLAC. " + abbreviate(result.stderr()));
             }
 
-            JsonNode outputProbe = probe(temporaryOutput);
+            JsonNode outputProbe;
+            try {
+                outputProbe = probe(temporaryOutput);
+            } catch (WorkflowException exception) {
+                throw new WorkflowException(HttpStatus.UNPROCESSABLE_ENTITY,
+                        "FFmpeg encoded the temporary FLAC, but FFprobe could not verify its metadata. "
+                                + "The temporary output was discarded. " + exception.getMessage(),
+                        exception);
+            }
             String actualTitle = tag(outputProbe, "title");
             String actualArtist = tag(outputProbe, "artist");
             if (!metadata.title().strip().equals(actualTitle)
                     || !metadata.artist().strip().equals(actualArtist)) {
                 throw new WorkflowException(HttpStatus.UNPROCESSABLE_ENTITY,
-                        "The FLAC was created but its title/artist tags did not verify.");
+                        verificationFailure(metadata, actualTitle, actualArtist));
             }
             boolean artworkEmbedded = hasAttachedArtwork(outputProbe);
             if (artwork != null && !artworkEmbedded) {
                 throw new WorkflowException(HttpStatus.UNPROCESSABLE_ENTITY,
-                        "The FLAC was created but the cover art could not be embedded.");
+                        "FFmpeg encoded the temporary FLAC, but FFprobe could not verify the embedded cover art. "
+                                + "The temporary output was discarded.");
             }
 
             moveIntoPlace(temporaryOutput, output, replaceExisting);
             return new ExportResponse(output.toString(), writtenTags(metadata), artworkEmbedded);
+        } catch (FileAlreadyExistsException exception) {
+            throw new WorkflowException(HttpStatus.CONFLICT,
+                    "A FLAC already exists at " + output + ". Retry or enable replace to overwrite it.", exception);
         } catch (IOException exception) {
             throw new WorkflowException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Could not create or save the FLAC: " + exception.getMessage(), exception);
@@ -250,8 +282,21 @@ public class MediaService {
         return value == null || value < 1 ? "" : value.toString();
     }
 
-    private static Path outputPath(Path source) {
-        return source.resolveSibling(stripExtension(source.getFileName().toString()) + ".flac");
+    static Path outputPath(Path source, Path outputDirectory, boolean replaceExisting) {
+        String baseName = stripExtension(source.getFileName().toString());
+        Path candidate = outputDirectory.resolve(baseName + ".flac").normalize();
+        if (candidate.equals(source.toAbsolutePath().normalize())) {
+            baseName += " (tagged)";
+            candidate = outputDirectory.resolve(baseName + ".flac").normalize();
+        }
+        if (replaceExisting || !Files.exists(candidate, LinkOption.NOFOLLOW_LINKS)) {
+            return candidate;
+        }
+        int suffix = 2;
+        do {
+            candidate = outputDirectory.resolve(baseName + " (" + suffix++ + ").flac").normalize();
+        } while (Files.exists(candidate, LinkOption.NOFOLLOW_LINKS));
+        return candidate;
     }
 
     private static String stripExtension(String filename) {
@@ -268,13 +313,26 @@ public class MediaService {
         return false;
     }
 
-    private static String tag(JsonNode probe, String key) {
-        JsonNode tags = probe.path("format").path("tags");
-        JsonNode value = tags.get(key);
-        if (value == null) {
-            value = tags.get(key.toUpperCase(Locale.ROOT));
+    static String tag(JsonNode probe, String key) {
+        String normalizedKey = key.replaceAll("[^A-Za-z0-9]", "").toLowerCase(Locale.ROOT);
+        return extractMetadataTags(probe).getOrDefault(normalizedKey, "");
+    }
+
+    private static String verificationFailure(MetadataUpdate expected, String actualTitle, String actualArtist) {
+        List<String> mismatches = new ArrayList<>();
+        if (!expected.title().strip().equals(actualTitle)) {
+            mismatches.add("title expected " + displayTag(expected.title()) + ", read " + displayTag(actualTitle));
         }
-        return value == null ? "" : value.asText();
+        if (!expected.artist().strip().equals(actualArtist)) {
+            mismatches.add("artist expected " + displayTag(expected.artist()) + ", read " + displayTag(actualArtist));
+        }
+        return "FFmpeg encoded the temporary FLAC, but FFprobe found tag mismatches ("
+                + String.join("; ", mismatches) + "). The temporary output was discarded.";
+    }
+
+    private static String displayTag(String value) {
+        String text = safe(value).replaceAll("\\p{Cntrl}", " ");
+        return "'" + (text.length() <= 120 ? text : text.substring(0, 120) + "...") + "'";
     }
 
     private static List<TagEntry> writtenTags(MetadataUpdate metadata) {
@@ -309,7 +367,7 @@ public class MediaService {
                 Files.move(temporaryOutput, output, StandardCopyOption.REPLACE_EXISTING,
                         StandardCopyOption.ATOMIC_MOVE);
             } else {
-                Files.move(temporaryOutput, output, StandardCopyOption.ATOMIC_MOVE);
+                Files.move(temporaryOutput, output);
             }
         } catch (AtomicMoveNotSupportedException exception) {
             if (replaceExisting) {
@@ -336,6 +394,9 @@ public class MediaService {
         }
     }
 
-    public record Inspection(double durationSeconds) {
+    public record Inspection(double durationSeconds, Map<String, String> tags) {
+        public Inspection {
+            tags = Map.copyOf(tags);
+        }
     }
 }
