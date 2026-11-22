@@ -130,12 +130,14 @@ public class MediaService {
             addTag(command, "disc", number(metadata.discNumber()));
             addTag(command, "disctotal", number(metadata.discTotal()));
             addTag(command, "comment", metadata.comment());
+            command.addAll(List.of("-f", "flac"));
             command.add(temporaryOutput.toString());
 
             LocalProcessRunner.Result result = LocalProcessRunner.run(command, Duration.ofMinutes(5));
             if (result.exitCode() != 0 || !Files.isRegularFile(temporaryOutput)) {
                 throw new WorkflowException(HttpStatus.UNPROCESSABLE_ENTITY,
-                        "FFmpeg could not create the FLAC. " + abbreviate(result.stderr()));
+                        "FFmpeg could not create the FLAC at " + output + ". "
+                                + abbreviate(result.stderr()));
             }
 
             JsonNode outputProbe;
@@ -266,8 +268,12 @@ public class MediaService {
     private static void addTag(List<String> command, String key, String value) {
         if (value != null && !value.isBlank()) {
             command.add("-metadata");
-            command.add(key + "=" + value.strip());
+            command.add(key + "=" + escapeMetadataValue(value.strip()));
         }
+    }
+
+    private static String escapeMetadataValue(String value) {
+        return value.replace("\"", "\\\"");
     }
 
     private static String clean(String value) {
